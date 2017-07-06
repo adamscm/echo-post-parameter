@@ -65,13 +65,8 @@ static void  ngx_http_read_post_body(ngx_http_request_t *r)
     
     ngx_chain_t *bufs = r->request_body->bufs;
     //获取请求报文内容长度
-    while(bufs)
-    {
-         ngx_buf_t *buf = bufs->buf;
-         len += (buf->last - buf->pos);
-         bufs = bufs->next;
-    }
-    
+    len = atoi((const char *)r->headers_in.content_length->value.data);
+
     ngx_buf_t *response_body = ngx_create_temp_buf(r->pool,len);
     if (NULL == response_body)
     {
@@ -90,6 +85,8 @@ static void  ngx_http_read_post_body(ngx_http_request_t *r)
          bufs = bufs->next;
     }
     
+    r->headers_out.content_length_n = len;
+
     int rc = ngx_http_send_header(r);
     if (rc == NGX_ERROR || rc > NGX_OK || r->header_only)
     {
@@ -115,7 +112,15 @@ static ngx_int_t ngx_http_echo_post_parameter_handler(ngx_http_request_t *r)
     {
         return NGX_HTTP_NOT_ALLOWED;
     }
-    
+    //请求不带任何参数情况下直接回复不含响应体的报文
+    if (NULL == r->headers_in.content_length || 0 == atoi((const char *)r->headers_in.content_length->value.data))
+    {
+        r->headers_out.content_length_n = 0;
+        r->headers_out.status = NGX_HTTP_OK;
+        r->header_only = 1;
+        return ngx_http_send_header(r);
+    }
+
     ngx_int_t rc = ngx_http_read_client_request_body(r,ngx_http_read_post_body);//设置读取完请求体后的回调处理函数
 
     if (rc == NGX_ERROR || rc >= NGX_HTTP_SPECIAL_RESPONSE) {
